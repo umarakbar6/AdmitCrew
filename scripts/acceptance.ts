@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { PROGRAMS, INITIAL_LEADS } from "../lib/seed.ts";
 import { answerProgramQuestion, normalizePhone, reviewDocument, safetyReview } from "../lib/agents.ts";
+import { readFileSync } from "node:fs";
 
 assert.equal(PROGRAMS.length,15);
 assert.ok(new Set(PROGRAMS.map(p=>p.country)).size>=3);
@@ -16,4 +17,11 @@ assert.equal(reviewDocument("Passport-B-expired.svg","Ali Khan").reason,"Expired
 assert.equal(reviewDocument("Transcript-name-mismatch.svg","Ali Khan").reason,"Name mismatch");
 assert.equal(reviewDocument("IELTS-Ayesha-7.svg","Ayesha Noor").status,"OK");
 const reminders=new Set<string>(); reminders.add("HAMZA-4D"); reminders.add("HAMZA-4D"); assert.equal(reminders.size,1);
+const stateRoute=readFileSync(new URL("../app/api/state/route.ts",import.meta.url),"utf8");
+const documentRoute=readFileSync(new URL("../app/api/documents/route.ts",import.meta.url),"utf8");
+const migration=readFileSync(new URL("../drizzle/0000_admitcrew.sql",import.meta.url),"utf8");
+assert.match(stateRoute,/status='pending' RETURNING/);
+assert.match(stateRoute,/INSERT OR IGNORE INTO approvals/);
+assert.match(documentRoute,/BUCKET\.put/);
+for(const table of ["leads","programs","approvals","documents","escalations","agent_runs","audit_log"])assert.ok(migration.includes(`CREATE TABLE \`${table}\``));
 console.log("PASS: 7 acceptance-rule groups verified");
