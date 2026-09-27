@@ -101,7 +101,14 @@ alter table public.agent_runs enable row level security;
 alter table public.audit_log enable row level security;
 alter table public.staff_users enable row level security;
 
+-- The Data API is deliberately not exposed to public roles. Server-side
+-- application code and Edge Functions use only the service role.
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+alter default privileges in schema public grant all privileges on tables to service_role;
+alter default privileges in schema public grant usage, select on sequences to service_role;
+
 insert into storage.buckets (id, name, public)
 values ('admitcrew-documents', 'admitcrew-documents', false)
 on conflict (id) do update set public = false;
-

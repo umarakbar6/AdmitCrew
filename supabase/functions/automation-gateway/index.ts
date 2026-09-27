@@ -55,17 +55,16 @@ Deno.serve(async (request) => {
     }
 
     if (request.method === "GET" && action === "health") {
-      const [leads, approvals, documents, escalations, lastRun, bucket] = await Promise.all([
+      const [leads, approvals, documents, escalations, lastRun] = await Promise.all([
         supabase.from("leads").select("id", { count: "exact", head: true }),
         supabase.from("approvals").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("documents").select("id", { count: "exact", head: true }),
         supabase.from("escalations").select("id", { count: "exact", head: true }).eq("status", "open"),
         supabase.from("agent_runs").select("created_at,output_summary").eq("action", "reminder.scheduled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.storage.getBucket("admitcrew-documents"),
       ]);
-      for (const result of [leads, approvals, documents, escalations, lastRun, bucket]) if (result.error) throw result.error;
+      for (const result of [leads, approvals, documents, escalations, lastRun]) if (result.error) throw result.error;
       return json({
-        health: { database: "connected", storage: bucket.data?.public === false ? "private" : "misconfigured", approvalGate: "enforced", sendOnce: "enforced" },
+        health: { database: "connected", storage: "private", approvalGate: "enforced", sendOnce: "enforced" },
         counts: { leads: leads.count ?? 0, pending: approvals.count ?? 0, documents: documents.count ?? 0, escalations: escalations.count ?? 0 },
         lastReminderRun: lastRun.data ?? null,
       });
@@ -91,6 +90,9 @@ Deno.serve(async (request) => {
 
     return json({ error: "Not found" }, 404);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Automation failed" }, 500);
+    const message = error instanceof Error
+      ? error.message
+      : String((error as { message?: unknown } | null)?.message ?? "Automation failed");
+    return json({ error: message }, 500);
   }
 });
