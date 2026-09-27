@@ -1,0 +1,5 @@
+project_id = "admitcrew"
+
+[functions.automation-gateway]
+verify_jwt = false
+
