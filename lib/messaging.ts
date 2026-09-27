@@ -11,7 +11,10 @@ export async function deliverApprovedMessage(phone: string, message: string) {
     headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: phone, type: "text", text: { body: message } }),
   });
-  const payload = await response.json() as any;
+  const payload = await response.json() as {
+    error?: { message?: string };
+    messages?: Array<{ id?: string }>;
+  };
   if (!response.ok) throw new Error(payload?.error?.message || `WhatsApp delivery failed (${response.status})`);
   return { mode: "whatsapp" as const, providerId: payload?.messages?.[0]?.id ?? null };
 }

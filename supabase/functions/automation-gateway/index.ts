@@ -55,16 +55,17 @@ Deno.serve(async (request) => {
     }
 
     if (request.method === "GET" && action === "health") {
-      const [leads, approvals, documents, escalations, lastRun] = await Promise.all([
+      const [leads, approvals, documents, escalations, lastRun, bucket] = await Promise.all([
         supabase.from("leads").select("id", { count: "exact", head: true }),
         supabase.from("approvals").select("id", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("documents").select("id", { count: "exact", head: true }),
         supabase.from("escalations").select("id", { count: "exact", head: true }).eq("status", "open"),
         supabase.from("agent_runs").select("created_at,output_summary").eq("action", "reminder.scheduled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.storage.getBucket("admitcrew-documents"),
       ]);
-      for (const result of [leads, approvals, documents, escalations, lastRun]) if (result.error) throw result.error;
+      for (const result of [leads, approvals, documents, escalations, lastRun, bucket]) if (result.error) throw result.error;
       return json({
-        health: { database: "connected", storage: "connected", approvalGate: "enforced", sendOnce: "enforced" },
+        health: { database: "connected", storage: bucket.data?.public === false ? "private" : "misconfigured", approvalGate: "enforced", sendOnce: "enforced" },
         counts: { leads: leads.count ?? 0, pending: approvals.count ?? 0, documents: documents.count ?? 0, escalations: escalations.count ?? 0 },
         lastReminderRun: lastRun.data ?? null,
       });
@@ -80,10 +81,11 @@ Deno.serve(async (request) => {
         input_summary: `${workflow} · ${execution}`, output_summary: message, status: "failed",
       });
       if (error) throw error;
-      await supabase.from("audit_log").insert({
+      const { error: auditError } = await supabase.from("audit_log").insert({
         id: crypto.randomUUID(), actor_id: "n8n", actor_name: "Automation Monitor",
         action: "Workflow failure", detail: `${workflow}: ${message}`, tone: "red",
       });
+      if (auditError) throw auditError;
       return json({ recorded: true });
     }
 
@@ -92,4 +94,3 @@ Deno.serve(async (request) => {
     return json({ error: error instanceof Error ? error.message : "Automation failed" }, 500);
   }
 });
-

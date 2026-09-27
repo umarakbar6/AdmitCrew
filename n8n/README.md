@@ -1,31 +1,30 @@
 # AdmitCrew n8n integration
 
-n8n is an outer scheduling and monitoring layer. AdmitCrew remains the only owner of student data, agent decisions, approvals, send-once enforcement, documents, and WhatsApp delivery.
+n8n is the outer scheduling and monitoring layer. Supabase is the shared system of record. n8n never owns student data, approval decisions, documents, or WhatsApp delivery.
 
 ## Import order
 
-1. Create one n8n **Header Auth** credential named `AdmitCrew Automation Token`.
-2. Set the header name to `Authorization` and the value to `Bearer <the AdmitCrew CRON_SECRET>`.
-3. Import `03-error-reporter.json`, select the credential, save, and publish it.
-4. Import `01-daily-reminders.json` and `02-health-monitor.json`.
-5. Select the same credential in every HTTP Request node.
-6. In each scheduled workflow's settings, choose `AdmitCrew - Workflow Error Reporter` as its error workflow.
-7. Confirm the workflow timezone is `Asia/Karachi`.
-8. Test manually. Publish only after both test executions succeed.
+1. Replace `YOUR_PROJECT_REF` in each HTTP Request URL with the deployed Supabase project reference.
+2. Create one n8n **Header Auth** credential named `AdmitCrew Automation Token`.
+3. Set its name to `Authorization` and its value to the bearer token whose SHA-256 hash is stored in the Supabase function secret `N8N_TOKEN_SHA256`.
+4. Import and publish `03-error-reporter.json`.
+5. Import `01-daily-reminders.json` and `02-health-monitor.json`.
+6. Select the same credential in every HTTP Request node.
+7. Select the error reporter as the error workflow for both scheduled workflows.
+8. Confirm the workflow timezone is `Asia/Karachi`.
+9. Execute reminder and health manually. Publish schedules only after both return successful JSON.
 
-The committed workflow files intentionally contain no token, Meta credential, student data, document, or OpenAI key. Their placeholder credential reference must be replaced inside n8n after import.
+## Retry and idempotency
 
-## Retry policy
-
-- Retry network failures and server errors at most three times.
-- Wait 30 seconds between attempts.
+- Retry transient network/server failures at most three times, waiting 30 seconds.
 - Authentication and validation failures require correction, not repeated execution.
-- AdmitCrew owns idempotency. n8n never creates its own send key and never sends a student message.
-
-## WhatsApp boundary
-
-Do not add a WhatsApp node to these workflows. AdmitCrew's Delivery Agent remains the sole sender after staff approval. Moving transport ownership to n8n later requires a separate delivery-queue contract and disabling the existing sender first.
+- Supabase enforces the unique reminder `send_key`; repeated runs cannot create duplicate drafts.
+- The reminder workflow creates drafts only. It never sends a message.
 
 ## Data boundary
 
-n8n may retain workflow name, execution id, timestamps, service status, and reminder counts. It must not store phone numbers, student profiles, program records, chat content, passports, transcripts, IELTS files, agent prompts, or API keys in execution data.
+n8n may retain workflow names, execution IDs, timestamps, service status, and aggregate reminder counts. It must not retain student phone numbers, profiles, chats, documents, program records, prompts, or API keys.
+
+## WhatsApp boundary
+
+Do not add WhatsApp nodes. Meta webhooks are signature-verified by the Supabase `whatsapp-webhook` function, and only AdmitCrew's Delivery Agent may send a staff-approved message.

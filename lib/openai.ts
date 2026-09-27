@@ -2,6 +2,11 @@ import type { Program } from "./seed";
 import { env } from "cloudflare:workers";
 
 type JsonSchema = Record<string, unknown>;
+type ResponsePayload = {
+  output_text?: unknown;
+  output?: Array<{ content?: Array<{ type?: unknown; text?: unknown }> }>;
+};
+type ResponseInput = Record<string, unknown>;
 
 function apiKey() {
   const key = env.OPENAI_API_KEY;
@@ -9,7 +14,7 @@ function apiKey() {
   return key;
 }
 
-function outputText(payload: any) {
+function outputText(payload: ResponsePayload) {
   if (typeof payload?.output_text === "string") return payload.output_text;
   for (const item of payload?.output ?? []) {
     for (const content of item?.content ?? []) {
@@ -19,7 +24,7 @@ function outputText(payload: any) {
   throw new Error("The AI service returned no text output");
 }
 
-export async function structuredResponse<T>(instructions: string, input: any[], name: string, schema: JsonSchema): Promise<T> {
+export async function structuredResponse<T>(instructions: string, input: ResponseInput[], name: string, schema: JsonSchema): Promise<T> {
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey()}`, "Content-Type": "application/json" },
@@ -35,7 +40,7 @@ export async function structuredResponse<T>(instructions: string, input: any[], 
     const detail = await response.text();
     throw new Error(`OpenAI request failed (${response.status}): ${detail.slice(0, 240)}`);
   }
-  return JSON.parse(outputText(await response.json())) as T;
+  return JSON.parse(outputText(await response.json() as ResponsePayload)) as T;
 }
 
 export async function draftProgramAnswer(question: string, program: Program) {

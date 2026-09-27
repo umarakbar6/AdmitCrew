@@ -3,3 +3,5 @@ project_id = "admitcrew"
 [functions.automation-gateway]
 verify_jwt = false
 
+[functions.whatsapp-webhook]
+verify_jwt = false

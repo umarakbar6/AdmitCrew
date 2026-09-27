@@ -1,15 +1,79 @@
-import { env } from "cloudflare:workers";
-import { INITIAL_LEADS, PROGRAMS } from "@/lib/seed";
 import { deliverApprovedMessage } from "@/lib/messaging";
 import { requireStaff, responseFromError, type Staff } from "@/lib/auth";
+import { insertRows, selectOne, selectRows, updateRows, upsertRows } from "@/lib/supabase";
 
-const uid=()=>crypto.randomUUID();
-async function seed(){const count=await env.DB.prepare("SELECT COUNT(*) AS count FROM leads").first<{count:number}>();if((count?.count??0)>0)return;const statements=[];for(const l of INITIAL_LEADS)statements.push(env.DB.prepare("INSERT OR IGNORE INTO leads (id,name,phone,normalized_phone,country,marks,ielts,last_reply,status) VALUES (?,?,?,?,?,?,?,?,?)").bind(l.id,l.name,l.phone,l.normalizedPhone,l.country,l.marks,l.ielts,l.lastReply,l.status));for(const p of PROGRAMS)statements.push(env.DB.prepare("INSERT OR IGNORE INTO programs (id,university,country,program,fee,deadline,min_marks,min_ielts,documents) VALUES (?,?,?,?,?,?,?,?,?)").bind(p.id,p.university,p.country,p.program,p.fee,p.deadline,p.minMarks,p.minIelts,p.documents));statements.push(env.DB.prepare("INSERT OR IGNORE INTO approvals (id,lead_id,lead_name,agent,message,reason,status) VALUES (?,?,?,?,?,?,?)").bind("ap-ali","lead-ali","Ali Khan","University Agent","University of Manchester — BSc Computer Science costs £32,000 per year. The deadline is 15 Jan 2027. Minimum requirements are 75% marks and IELTS 6.5. Required documents: Passport, transcript, IELTS.","Approved record UK-MAN-CS","pending"));statements.push(env.DB.prepare("INSERT OR IGNORE INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),"system","Intake Agent","Lead matched","Ali Khan matched by normalized phone 923012345678.","blue"));await env.DB.batch(statements)}
+const uid = () => crypto.randomUUID();
+const enc = encodeURIComponent;
+type LeadRow = Record<string, unknown> & { normalized_phone: string; last_reply: string };
+type ApprovalRow = Record<string, unknown> & { lead_id: string; lead_name: string; message: string; created_at: string; reviewed_by: string | null; sent_at: string | null };
+type DocumentRow = Record<string, unknown> & { lead_name: string; file_name: string; checked_at: string };
+type AuditRow = Record<string, unknown> & { actor_name: string; created_at: string };
+type LeadInput = { name:string; phone:string; normalizedPhone:string; country?:string; marks?:string; ielts?:string };
+type DraftInput = { id?:string; leadId:string; leadName:string; agent:string; message:string; reason:string; sendKey?:string; escalation?:boolean; question?:string };
+type ActionBody = { action?:string; lead?:LeadInput; draft?:DraftInput; decision?:string; id?:string };
 
-async function state(request:Request,staff?:Staff){await seed();const a=staff??await requireStaff(request);const [leads,approvals,documents,logs,escalations,runs]=await Promise.all([env.DB.prepare("SELECT id,name,phone,normalized_phone AS normalizedPhone,country,marks,ielts,last_reply AS lastReply,status FROM leads ORDER BY updated_at DESC").all(),env.DB.prepare("SELECT id,lead_id AS leadId,lead_name AS leadName,agent,message,reason,status,created_at AS createdAt,reviewed_by AS reviewedBy,sent_at AS sentAt FROM approvals ORDER BY created_at DESC").all(),env.DB.prepare("SELECT id,lead_name AS leadName,file_name AS fileName,type,status,reason,details,confidence,checked_at AS checkedAt FROM documents ORDER BY checked_at DESC").all(),env.DB.prepare("SELECT id,actor_name AS actor,action,detail,created_at AS time,tone FROM audit_log ORDER BY created_at DESC LIMIT 100").all(),env.DB.prepare("SELECT * FROM escalations ORDER BY created_at DESC").all(),env.DB.prepare("SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT 100").all()]);return{leads:leads.results,approvals:approvals.results,docs:documents.results,logs:logs.results,escalations:escalations.results,agentRuns:runs.results,staff:a}}
-export async function GET(request:Request){try{return Response.json(await state(request))}catch(error){return responseFromError(error,"Database unavailable")}}
-export async function POST(request:Request){try{await seed();const a=await requireStaff(request),body=await request.json() as any,now=new Date().toISOString();if(body.action==="lead.upsert"){const l=body.lead,existing=await env.DB.prepare("SELECT id FROM leads WHERE normalized_phone=?").bind(l.normalizedPhone).first<{id:string}>(),id=existing?.id??uid();await env.DB.batch([env.DB.prepare("INSERT INTO leads (id,name,phone,normalized_phone,country,marks,ielts,last_reply,status,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(normalized_phone) DO UPDATE SET name=excluded.name,phone=excluded.phone,country=excluded.country,marks=excluded.marks,ielts=excluded.ielts,updated_at=excluded.updated_at").bind(id,l.name,l.phone,l.normalizedPhone,l.country,l.marks,l.ielts,"Just now","Active",now),env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),a.id,"Intake Agent",existing?"Existing lead updated":"New lead saved",`${l.name} stored by unique phone ${l.normalizedPhone}.`,"green"),env.DB.prepare("INSERT INTO agent_runs (id,agent,action,input_summary,output_summary,status) VALUES (?,?,?,?,?,?)").bind(uid(),"Intake Agent","lead.upsert",`Phone ${l.normalizedPhone}`,existing?"Updated one existing lead":"Created one lead","complete")])}
-else if(body.action==="approval.create"){const d=body.draft;await env.DB.batch([env.DB.prepare("INSERT INTO approvals (id,lead_id,lead_name,agent,message,reason,status,send_key) VALUES (?,?,?,?,?,?,?,?)").bind(d.id??uid(),d.leadId,d.leadName,d.agent,d.message,d.reason,"pending",d.sendKey??null),env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),"system","Coordinator","Approval required",`Draft for ${d.leadName} queued; not sent.`,"amber"),env.DB.prepare("INSERT INTO agent_runs (id,agent,action,input_summary,output_summary,status) VALUES (?,?,?,?,?,?)").bind(uid(),d.agent,"draft",d.reason,"Pending staff approval","complete")]);if(d.escalation)await env.DB.prepare("INSERT INTO escalations (id,lead_id,question,reason,status) VALUES (?,?,?,?,?)").bind(uid(),d.leadId,d.question,"Program not in approved list","open").run()}
-else if(body.action==="approval.review"){if(body.decision!=="approve"){const updated=await env.DB.prepare("UPDATE approvals SET status='rejected',reviewed_by=?,reviewed_at=? WHERE id=? AND status='pending' RETURNING lead_name AS leadName").bind(a.name,now,body.id).first<{leadName:string}>();if(!updated)return Response.json({error:"This draft was already reviewed; duplicate delivery prevented."},{status:409});await env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),a.id,a.name,"Draft rejected",`${updated.leadName}: not sent.`,"red").run()}else{const approved=await env.DB.prepare("UPDATE approvals SET status='delivering',reviewed_by=?,reviewed_at=? WHERE id=? AND status='pending' RETURNING lead_id AS leadId,lead_name AS leadName,message").bind(a.name,now,body.id).first<{leadId:string;leadName:string;message:string}>();if(!approved)return Response.json({error:"This draft was already reviewed; duplicate delivery prevented."},{status:409});try{const lead=await env.DB.prepare("SELECT normalized_phone AS phone FROM leads WHERE id=?").bind(approved.leadId).first<{phone:string}>(),delivery=await deliverApprovedMessage(lead?.phone??"",approved.message);await env.DB.batch([env.DB.prepare("UPDATE approvals SET status='sent',sent_at=? WHERE id=? AND status='delivering'").bind(now,body.id),env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),a.id,a.name,"Message approved & sent",`${approved.leadName}: ${delivery.mode} delivery recorded once${delivery.providerId?` (${delivery.providerId})`:""}.`,"green"),env.DB.prepare("INSERT INTO agent_runs (id,agent,action,input_summary,output_summary,status) VALUES (?,?,?,?,?,?)").bind(uid(),"Delivery Agent","message.send",approved.leadName,`${delivery.mode} delivery complete`,"complete")])}catch(error){await env.DB.prepare("UPDATE approvals SET status='pending' WHERE id=? AND status='delivering'").bind(body.id).run();throw error}}}
-else if(body.action==="reminder.run"){await env.DB.prepare("INSERT OR IGNORE INTO approvals (id,lead_id,lead_name,agent,message,reason,status,send_key) VALUES (?,?,?,?,?,?,?,?)").bind("rem-hamza","lead-hamza","Hamza Iqbal","Follow-up Agent","Assalam-o-Alaikum Hamza, just checking in about your UK study plans. Your IELTS is still pending. Would you like help with the next step?","No reply for 4 days · send-once key HAMZA-4D","pending","HAMZA-4D").run();await env.DB.batch([env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),"system","Follow-up Agent","Reminder evaluated","Hamza inactivity rule evaluated; unique send key prevents duplicates.","amber"),env.DB.prepare("INSERT INTO agent_runs (id,agent,action,input_summary,output_summary,status) VALUES (?,?,?,?,?,?)").bind(uid(),"Follow-up Agent","reminder.run","Hamza inactive 4 days","One pending draft maximum","complete")])}
-else return Response.json({error:"Unknown action"},{status:400});return Response.json(await state(request,a))}catch(error){return responseFromError(error)}}
+async function state(request: Request, staff?: Staff) {
+  const member = staff ?? await requireStaff(request);
+  const [leadRows, approvalRows, documentRows, logs, escalations, runs] = await Promise.all([
+    selectRows<LeadRow>("leads", "select=*&order=updated_at.desc"), selectRows<ApprovalRow>("approvals", "select=*&order=created_at.desc"),
+    selectRows<DocumentRow>("documents", "select=*&order=checked_at.desc"), selectRows<AuditRow>("audit_log", "select=*&order=created_at.desc&limit=100"),
+    selectRows<Record<string, unknown>>("escalations", "select=*&order=created_at.desc"), selectRows<Record<string, unknown>>("agent_runs", "select=*&order=created_at.desc&limit=100"),
+  ]);
+  return {
+    leads: leadRows.map(row => ({ ...row, normalizedPhone: row.normalized_phone, lastReply: row.last_reply })),
+    approvals: approvalRows.map(row => ({ ...row, leadId: row.lead_id, leadName: row.lead_name, createdAt: row.created_at, reviewedBy: row.reviewed_by, sentAt: row.sent_at })),
+    docs: documentRows.map(row => ({ ...row, leadName: row.lead_name, fileName: row.file_name, checkedAt: row.checked_at })),
+    logs: logs.map(row => ({ ...row, actor: row.actor_name, time: row.created_at })), escalations, agentRuns: runs, staff: member,
+  };
+}
+
+export async function GET(request: Request) { try { return Response.json(await state(request)); } catch (error) { return responseFromError(error, "Database unavailable"); } }
+
+export async function POST(request: Request) {
+  try {
+    const staff = await requireStaff(request), body = await request.json() as ActionBody, now = new Date().toISOString();
+    if (body.action === "lead.upsert") {
+      const lead = body.lead;
+      if (!lead?.name || !lead?.normalizedPhone) return Response.json({ error: "Name and phone are required" }, { status: 400 });
+      const existing = await selectOne<{ id: string }>("leads", `select=id&normalized_phone=eq.${enc(lead.normalizedPhone)}`);
+      await Promise.all([
+        upsertRows("leads", { id: existing?.id ?? uid(), name: lead.name, phone: lead.phone, normalized_phone: lead.normalizedPhone, country: lead.country ?? "", marks: lead.marks ?? "", ielts: lead.ielts ?? "", last_reply: "Just now", status: "Active", updated_at: now }, "normalized_phone"),
+        insertRows("audit_log", { id: uid(), actor_id: staff.id, actor_name: "Intake Agent", action: existing ? "Existing lead updated" : "New lead saved", detail: `${lead.name} stored by unique phone ${lead.normalizedPhone}.`, tone: "green" }),
+        insertRows("agent_runs", { id: uid(), agent: "Intake Agent", action: "lead.upsert", input_summary: `Phone ${lead.normalizedPhone}`, output_summary: existing ? "Updated one existing lead" : "Created one lead", status: "complete" }),
+      ]);
+    } else if (body.action === "approval.create") {
+      const draft = body.draft;
+      if (!draft?.leadId || !draft?.message) return Response.json({ error: "Draft is incomplete" }, { status: 400 });
+      await Promise.all([
+        insertRows("approvals", { id: draft.id ?? uid(), lead_id: draft.leadId, lead_name: draft.leadName, agent: draft.agent, message: draft.message, reason: draft.reason, status: "pending", send_key: draft.sendKey ?? null }),
+        insertRows("audit_log", { id: uid(), actor_id: "system", actor_name: "Coordinator", action: "Approval required", detail: `Draft for ${draft.leadName} queued; not sent.`, tone: "amber" }),
+        insertRows("agent_runs", { id: uid(), agent: draft.agent, action: "draft", input_summary: draft.reason, output_summary: "Pending staff approval", status: "complete" }),
+        draft.escalation ? insertRows("escalations", { id: uid(), lead_id: draft.leadId, question: draft.question, reason: "Program not in approved list", status: "open" }) : Promise.resolve(),
+      ]);
+    } else if (body.action === "approval.review") {
+      if (body.decision !== "approve") {
+        const [updated] = await updateRows<ApprovalRow>("approvals", `id=eq.${enc(body.id ?? "")}&status=eq.pending`, { status: "rejected", reviewed_by: staff.name, reviewed_at: now });
+        if (!updated) return Response.json({ error: "This draft was already reviewed; duplicate delivery prevented." }, { status: 409 });
+        await insertRows("audit_log", { id: uid(), actor_id: staff.id, actor_name: staff.name, action: "Draft rejected", detail: `${updated.lead_name}: not sent.`, tone: "red" });
+      } else {
+        const [approved] = await updateRows<ApprovalRow>("approvals", `id=eq.${enc(body.id ?? "")}&status=eq.pending`, { status: "delivering", reviewed_by: staff.name, reviewed_at: now });
+        if (!approved) return Response.json({ error: "This draft was already reviewed; duplicate delivery prevented." }, { status: 409 });
+        try {
+          const lead = await selectOne<{normalized_phone:string}>("leads", `select=normalized_phone&id=eq.${enc(approved.lead_id)}`), delivery = await deliverApprovedMessage(lead?.normalized_phone ?? "", approved.message);
+          await Promise.all([
+            updateRows("approvals", `id=eq.${enc(body.id ?? "")}&status=eq.delivering`, { status: "sent", sent_at: now }),
+            insertRows("audit_log", { id: uid(), actor_id: staff.id, actor_name: staff.name, action: "Message approved & sent", detail: `${approved.lead_name}: ${delivery.mode} delivery recorded once${delivery.providerId ? ` (${delivery.providerId})` : ""}.`, tone: "green" }),
+            insertRows("agent_runs", { id: uid(), agent: "Delivery Agent", action: "message.send", input_summary: approved.lead_name, output_summary: `${delivery.mode} delivery complete`, status: "complete" }),
+          ]);
+        } catch (error) { await updateRows("approvals", `id=eq.${enc(body.id ?? "")}&status=eq.delivering`, { status: "pending" }); throw error; }
+      }
+    } else if (body.action === "reminder.run") {
+      await Promise.all([
+        upsertRows("approvals", { id: "rem-hamza", lead_id: "lead-hamza", lead_name: "Hamza Iqbal", agent: "Follow-up Agent", message: "Assalam-o-Alaikum Hamza, just checking in about your UK study plans. Your IELTS is still pending. Would you like help with the next step?", reason: "No reply for 4 days · send-once key HAMZA-4D", status: "pending", send_key: "HAMZA-4D" }, "send_key", true),
+        insertRows("audit_log", { id: uid(), actor_id: "system", actor_name: "Follow-up Agent", action: "Reminder evaluated", detail: "Hamza inactivity rule evaluated; unique send key prevents duplicates.", tone: "amber" }),
+        insertRows("agent_runs", { id: uid(), agent: "Follow-up Agent", action: "reminder.run", input_summary: "Hamza inactive 4 days", output_summary: "One pending draft maximum", status: "complete" }),
+      ]);
+    } else return Response.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json(await state(request, staff));
+  } catch (error) { return responseFromError(error); }
+}

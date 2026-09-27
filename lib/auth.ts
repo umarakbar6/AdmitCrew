@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { countRows, insertRows, selectOne } from "@/lib/supabase";
 
 export type Staff = { id: string; email: string; name: string; role: "admin" | "counselor" };
 
@@ -16,11 +16,11 @@ export async function requireStaff(request: Request, roles: Staff["role"][] = ["
   const name = decodeName(request) || email || "Staff member";
   if (!id || !email) throw new Response("Authentication required", { status: 401 });
 
-  let staff = await env.DB.prepare("SELECT id,email,name,role FROM staff_users WHERE id=?").bind(id).first<Staff>();
+  let staff = await selectOne<Staff>("staff_users", `select=id,email,name,role&id=eq.${encodeURIComponent(id)}`);
   if (!staff) {
-    const existing = await env.DB.prepare("SELECT COUNT(*) AS count FROM staff_users").first<{count:number}>();
-    if ((existing?.count ?? 0) === 0) {
-      await env.DB.prepare("INSERT OR IGNORE INTO staff_users (id,email,name,role) VALUES (?,?,?,'admin')").bind(id,email,name).run();
+    const existing = await countRows("staff_users");
+    if (existing === 0) {
+      await insertRows("staff_users", { id, email, name, role: "admin" });
       staff = { id, email, name, role: "admin" };
     } else throw new Response("This account is not an AdmitCrew staff member", { status: 403 });
   }

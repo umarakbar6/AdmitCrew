@@ -1,11 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const AUTOMATION_ROUTES = new Set([
-  "/api/jobs/reminders",
-  "/api/jobs/events",
-  "/api/operations",
-]);
-
 const PUBLIC_ROUTES = new Set([
   "/favicon.svg",
   "/signin-with-chatgpt",
@@ -16,9 +10,6 @@ const PUBLIC_ROUTES = new Set([
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  // These are the only routes exposed to n8n. Their handlers still require
-  // the constant-time bearer-token check before touching application data.
-  if (AUTOMATION_ROUTES.has(pathname)) return NextResponse.next();
   if (PUBLIC_ROUTES.has(pathname) || pathname.startsWith("/_next/")) return NextResponse.next();
 
   const signedIn = Boolean(
