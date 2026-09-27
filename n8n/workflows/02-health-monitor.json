@@ -1,0 +1,37 @@
+{
+  "name": "AdmitCrew - Health Monitor",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 15 }] } },
+      "id": "admitcrew-health-schedule",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://admitcrew-admissions.umarakbar611.chatgpt.site/api/operations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "admitcrew-health-request",
+      "name": "Check AdmitCrew",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE_AFTER_IMPORT", "name": "AdmitCrew Automation Token" } },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000,
+      "onError": "stopWorkflow"
+    }
+  ],
+  "connections": { "Every 15 Minutes": { "main": [[{ "node": "Check AdmitCrew", "type": "main", "index": 0 }]] } },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Karachi", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "admitcrew-health-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "AdmitCrew" }, { "name": "Monitoring" }]
+}

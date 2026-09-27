@@ -1,0 +1,5 @@
+import { env } from "cloudflare:workers";
+import { requireAutomation } from "@/lib/automation-auth";
+
+const uid=()=>crypto.randomUUID();
+export async function POST(request:Request){try{await requireAutomation(request);const body=await request.json() as any,workflow=String(body.workflow??"n8n workflow").slice(0,120),execution=String(body.executionId??"unknown").slice(0,120),message=String(body.message??"Workflow failed").slice(0,500);await env.DB.batch([env.DB.prepare("INSERT INTO agent_runs (id,agent,action,input_summary,output_summary,status) VALUES (?,?,?,?,?,?)").bind(uid(),"Automation Monitor","n8n.failure",`${workflow} · ${execution}`,message,"failed"),env.DB.prepare("INSERT INTO audit_log (id,actor_id,actor_name,action,detail,tone) VALUES (?,?,?,?,?,?)").bind(uid(),"n8n","Automation Monitor","Workflow failure",`${workflow}: ${message}`,"red")]);return Response.json({recorded:true})}catch(error){if(error instanceof Response)return error;return Response.json({error:error instanceof Error?error.message:"Event recording failed"},{status:500})}}

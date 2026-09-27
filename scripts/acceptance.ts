@@ -24,6 +24,7 @@ const whatsappRoute=readFileSync(new URL("../app/api/webhooks/whatsapp/route.ts"
 const operationsRoute=readFileSync(new URL("../app/api/operations/route.ts",import.meta.url),"utf8");
 const reminderJob=readFileSync(new URL("../app/api/jobs/reminders/route.ts",import.meta.url),"utf8");
 const auth=readFileSync(new URL("../lib/auth.ts",import.meta.url),"utf8");
+const automationAuth=readFileSync(new URL("../lib/automation-auth.ts",import.meta.url),"utf8");
 const ui=readFileSync(new URL("../app/page.tsx",import.meta.url),"utf8");
 const migration=readFileSync(new URL("../drizzle/0000_admitcrew.sql",import.meta.url),"utf8");
 assert.match(stateRoute,/status='pending' RETURNING/);
@@ -40,8 +41,16 @@ assert.match(agentRoute,/requireStaff/);
 assert.match(documentRoute,/requireStaff/);
 assert.match(operationsRoute,/data\.export/);
 assert.match(operationsRoute,/privacy\.purge/);
-assert.match(reminderJob,/CRON_SECRET/);
+assert.match(reminderJob,/requireAutomation/);
+assert.match(automationAuth,/CRON_SECRET/);
 assert.match(reminderJob,/INSERT OR IGNORE INTO approvals/);
 assert.match(auth,/Administrator access required/);
+const n8nFiles=["01-daily-reminders.json","02-health-monitor.json","03-error-reporter.json"];
+for(const file of n8nFiles){const workflow=JSON.parse(readFileSync(new URL(`../n8n/workflows/${file}`,import.meta.url),"utf8"));assert.equal(workflow.active,false);assert.equal(workflow.settings.timezone,"Asia/Karachi");const source=JSON.stringify(workflow);assert.ok(!/whatsapp/i.test(source));assert.ok(!/passport|transcript|ielts/i.test(source));}
+const reminderWorkflow=JSON.parse(readFileSync(new URL("../n8n/workflows/01-daily-reminders.json",import.meta.url),"utf8"));
+assert.ok(reminderWorkflow.nodes.some((n:any)=>n.type==="n8n-nodes-base.scheduleTrigger"));
+assert.ok(reminderWorkflow.nodes.some((n:any)=>n.retryOnFail===true&&n.maxTries===3));
+const errorWorkflow=JSON.parse(readFileSync(new URL("../n8n/workflows/03-error-reporter.json",import.meta.url),"utf8"));
+assert.ok(errorWorkflow.nodes.some((n:any)=>n.type==="n8n-nodes-base.errorTrigger"));
 for(const table of ["leads","programs","approvals","documents","escalations","agent_runs","audit_log"])assert.ok(migration.includes(`CREATE TABLE \`${table}\``));
 console.log("PASS: 7 acceptance-rule groups verified");

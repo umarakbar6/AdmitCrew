@@ -1,12 +1,13 @@
 import { env } from "cloudflare:workers";
 import { requireStaff, responseFromError } from "@/lib/auth";
 import { whatsappConfigured } from "@/lib/messaging";
+import { automationAuthorized } from "@/lib/automation-auth";
 
 const uid = () => crypto.randomUUID();
 
 export async function GET(request: Request) {
   try {
-    const staff = await requireStaff(request);
+    const machine=await automationAuthorized(request),staff=machine?null:await requireStaff(request);
     const [leads, pending, docs, openEscalations, lastRun] = await Promise.all([
       env.DB.prepare("SELECT COUNT(*) AS count FROM leads").first<{count:number}>(),
       env.DB.prepare("SELECT COUNT(*) AS count FROM approvals WHERE status='pending'").first<{count:number}>(),

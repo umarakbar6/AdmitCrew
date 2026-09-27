@@ -1,0 +1,38 @@
+{
+  "name": "AdmitCrew - Daily Reminder Drafts",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "days", "daysInterval": 1, "triggerAtHour": 10, "triggerAtMinute": 0 }] } },
+      "id": "admitcrew-daily-schedule",
+      "name": "Daily 10 AM Pakistan",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://admitcrew-admissions.umarakbar611.chatgpt.site/api/jobs/reminders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "admitcrew-create-reminders",
+      "name": "Create Approval Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE_AFTER_IMPORT", "name": "AdmitCrew Automation Token" } },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000,
+      "onError": "stopWorkflow"
+    }
+  ],
+  "connections": { "Daily 10 AM Pakistan": { "main": [[{ "node": "Create Approval Drafts", "type": "main", "index": 0 }]] } },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Karachi", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "admitcrew-reminders-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "AdmitCrew" }, { "name": "Production" }]
+}

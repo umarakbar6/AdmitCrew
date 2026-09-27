@@ -1,0 +1,41 @@
+{
+  "name": "AdmitCrew - Workflow Error Reporter",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "admitcrew-error-trigger",
+      "name": "Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://admitcrew-admissions.umarakbar611.chatgpt.site/api/jobs/events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { workflow: $json.workflow?.name || 'Unknown workflow', executionId: $json.execution?.id || 'unknown', message: $json.execution?.error?.message || $json.trigger?.error?.message || 'Workflow failed' } }}",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "id": "admitcrew-record-failure",
+      "name": "Record Failure in AdmitCrew",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE_AFTER_IMPORT", "name": "AdmitCrew Automation Token" } },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 30000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": { "Workflow Error": { "main": [[{ "node": "Record Failure in AdmitCrew", "type": "main", "index": 0 }]] } },
+  "active": false,
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Karachi", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "admitcrew-errors-v1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": [{ "name": "AdmitCrew" }, { "name": "Errors" }]
+}
