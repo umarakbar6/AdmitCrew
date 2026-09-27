@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { draftProgramAnswer } from "@/lib/openai";
 import { safetyReview } from "@/lib/agents";
 import type { Program } from "@/lib/seed";
+import { requireStaff, responseFromError } from "@/lib/auth";
 
 const uid = () => crypto.randomUUID();
 const decline = "I can only help with study-abroad admissions questions. For anything else, please contact the appropriate service.";
@@ -13,6 +14,7 @@ function rowToProgram(row: any): Program {
 
 export async function POST(request: Request) {
   try {
+    await requireStaff(request);
     const body = await request.json() as { question?: string; leadId?: string; leadName?: string };
     const question = String(body.question ?? "").trim();
     const leadId = String(body.leadId ?? "");
@@ -52,7 +54,5 @@ export async function POST(request: Request) {
     if (escalation) statements.push(env.DB.prepare("INSERT INTO escalations (id,lead_id,question,reason,status) VALUES (?,?,?,?,?)").bind(uid(), leadId, question, "Program not in approved list", "open"));
     await env.DB.batch(statements);
     return Response.json({ draft: { id: approvalId, leadId, leadName, agent, message, reason, status: "pending", createdAt: new Date().toISOString() }, escalation, usedAI });
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Agent run failed" }, { status: 500 });
-  }
+  } catch (error) { return responseFromError(error, "Agent run failed"); }
 }

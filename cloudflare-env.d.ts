@@ -7,5 +7,7 @@ declare namespace Cloudflare {
     WHATSAPP_ACCESS_TOKEN?: string;
     WHATSAPP_PHONE_NUMBER_ID?: string;
     META_VERIFY_TOKEN?: string;
+    CRON_SECRET?: string;
+    OPENAI_STATUS?: string;
   }
 }

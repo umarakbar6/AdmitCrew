@@ -118,6 +118,14 @@ Replace the filename with the pending migration and `DB` with your D1 binding na
 
 When using the Sites plugin, follow its skill instructions for installation, builds, and publishing. These npm commands remain available for standalone use.
 
+## Production operations
+
+- Private Sites identity headers are enforced on staff APIs. The first authenticated site owner becomes the administrator; additional staff must be added explicitly.
+- `POST /api/jobs/reminders` is the protected scheduler target. Send `Authorization: Bearer <CRON_SECRET>`. It creates approval drafts only and never sends automatically.
+- `GET /api/operations` reports service and integration status. Administrator-only operations provide a JSON backup and document-retention purge.
+- WhatsApp credentials activate real delivery after approval. Without them, the acceptance-test delivery remains simulated.
+- OpenAI failures fall back to exact approved database records; they never relax the approval or safety rules.
+
 The portable build runs Vinext directly without a host `timeout` command. The managed-linux build uses `scripts/build-verified.sh` and its existing `SITES_BUILD_TIMEOUT` setting.
 
 ## Learn More
