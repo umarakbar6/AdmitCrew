@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     return Response.json({
       staff,
       health: { database: "connected", storage: "connected", approvalGate: "enforced", sendOnce: "enforced" },
-      integrations: { openai: Boolean(env.OPENAI_API_KEY), openaiStatus: env.OPENAI_STATUS || "unknown", whatsapp: whatsappConfigured(), scheduler: Boolean(env.CRON_SECRET) },
+      integrations: { openai: Boolean(env.OPENAI_API_KEY), openaiStatus: env.OPENAI_STATUS || "unknown", whatsapp: whatsappConfigured(), scheduler: Boolean(env.CRON_SECRET || env.N8N_TOKEN_SHA256) },
       counts: { leads: leads?.count ?? 0, pending: pending?.count ?? 0, documents: docs?.count ?? 0, escalations: openEscalations?.count ?? 0 },
       lastReminderRun: lastRun ?? null,
     });
