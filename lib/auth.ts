@@ -11,8 +11,8 @@ function decodeName(request: Request) {
 
 export async function requireStaff(request: Request, roles: Staff["role"][] = ["admin", "counselor"]): Promise<Staff> {
   const url = new URL(request.url), local = url.hostname === "127.0.0.1" || url.hostname === "localhost";
-  const id = request.headers.get("oai-authenticated-user-id") || (local ? "local-demo-staff" : "");
   const email = request.headers.get("oai-authenticated-user-email") || (local ? "demo@local.test" : "");
+  const id = request.headers.get("oai-authenticated-user-id") || email || (local ? "local-demo-staff" : "");
   const name = decodeName(request) || email || "Staff member";
   if (!id || !email) throw new Response("Authentication required", { status: 401 });
 
