@@ -11,7 +11,7 @@
     },
     {
       "parameters": {
-        "url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/automation-gateway/health",
+        "url": "https://jsxuefuffhpiliprfuol.supabase.co/functions/v1/automation-gateway/health",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": { "response": { "response": { "responseFormat": "json" } } }

@@ -12,7 +12,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/automation-gateway/events",
+        "url": "https://jsxuefuffhpiliprfuol.supabase.co/functions/v1/automation-gateway/events",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,

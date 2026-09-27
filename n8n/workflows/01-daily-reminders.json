@@ -12,7 +12,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://YOUR_PROJECT_REF.supabase.co/functions/v1/automation-gateway/reminders",
+        "url": "https://jsxuefuffhpiliprfuol.supabase.co/functions/v1/automation-gateway/reminders",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": { "response": { "response": { "responseFormat": "json" } } }

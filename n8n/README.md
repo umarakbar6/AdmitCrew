@@ -4,7 +4,7 @@ n8n is the outer scheduling and monitoring layer. Supabase is the shared system 
 
 ## Import order
 
-1. Replace `YOUR_PROJECT_REF` in each HTTP Request URL with the deployed Supabase project reference.
+1. The workflow URLs are preconfigured for the AdmitCrew Supabase project.
 2. Create one n8n **Header Auth** credential named `AdmitCrew Automation Token`.
 3. Set its name to `Authorization` and its value to the bearer token whose SHA-256 hash is stored in the Supabase function secret `N8N_TOKEN_SHA256`.
 4. Import and publish `03-error-reporter.json`.
