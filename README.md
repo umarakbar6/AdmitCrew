@@ -24,6 +24,14 @@ The detailed ownership boundaries are in `AGENT_CONTRACTS.md`.
 - **WhatsApp:** signed Meta webhooks enter through `whatsapp-webhook`; approved delivery remains inside AdmitCrew.
 - **Authentication:** Sites supplies ChatGPT identity headers; `staff_users` enforces staff authorization.
 
+## Live deployment
+
+- **Dashboard:** `https://admitcrew-admissions.umarakbar611.chatgpt.site` (private staff access)
+- **Backend:** Supabase project `jsxuefuffhpiliprfuol` (PostgreSQL, private Storage, and Edge Functions)
+- **Automation:** n8n Cloud schedules the protected reminder and health workflows.
+
+Real WhatsApp delivery is intentionally disabled until the office supplies its own Meta Business credentials. In that state, staff-approved delivery is recorded in simulation mode so the complete approval and send-once flow can be demonstrated without contacting a real student. OpenAI is optional: exact program answers and the four synthetic document cases have deterministic, database-grounded fallbacks.
+
 ## Project layout
 
 ```text
@@ -76,6 +84,16 @@ The acceptance suite verifies lead deduplication, catalog grounding, escalation,
 
 The repository contains exactly three fictional leads, 15 fictional program records across the UK, Canada, Germany, and Australia, and four clearly marked fake documents. Fees and dates are training examples, not real admissions advice.
 
-## Current deployment rule
+## Submission verification
 
-Do not point production traffic at Supabase until the schema, seed, secrets, Edge Functions, and dashboard environment have all been verified. Keep the existing private deployment available for rollback until every acceptance case passes against Supabase.
+Run all quality gates before publishing or recording the demonstration:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test:acceptance
+npm run build
+npm audit --omit=dev
+```
+
+The deployed dashboard must show Supabase connected, scheduler protected, approval gating enforced, and send-once protection enforced. Follow `VIDEO_DEMO_CHECKLIST.md` to demonstrate all seven brief test cases using only the generated fake documents.

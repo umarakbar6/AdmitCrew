@@ -1,6 +1,6 @@
 # AdmitCrew live demonstration
 
-1. Open Overview and point out the five agents, shared-data indicator, approval count, and quiet-lead count.
+1. Open Agent team and point out all nine bounded agents, the shared-data indicator, approval count, and quiet-lead count.
 2. Open Leads, add a student, then submit the same phone in `+92` format. Show that only one record exists.
 3. In Student inbox, ask about Manchester, Leeds, and Toronto. Open Approvals and show the exact record-backed drafts.
 4. Ask about an unlisted university. Show the staff escalation and that no facts were invented. Ask an unrelated question and show the refusal.

@@ -86,6 +86,9 @@ assert.ok(errorWorkflow.nodes.some((node: { type?: string }) => node.type === "n
 
 // 7. Visible operational claims are evidence-based.
 assert.match(ui, /Agent controls connected/);
+assert.match(ui, /Open staff escalations/);
+assert.match(ui, /Agent run history/);
+assert.match(ui, /saved student profiles/);
 assert.match(operationsRoute, /supabaseConfigured/);
 
 console.log("PASS: 7 acceptance-rule groups verified against the Supabase architecture");
