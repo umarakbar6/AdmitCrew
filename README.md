@@ -97,3 +97,7 @@ npm audit --omit=dev
 ```
 
 The deployed dashboard must show Supabase connected, scheduler protected, approval gating enforced, and send-once protection enforced. Follow `VIDEO_DEMO_CHECKLIST.md` to demonstrate all seven brief test cases using only the generated fake documents.
+
+## Staff access security
+
+For a fresh database, set BOOTSTRAP_ADMIN_USER_ID to the intended owner's stable Sites user ID before sign-in. An arbitrary first visitor is never promoted to administrator. Existing staff records continue to work without this setting. Local requests also require an authenticated identity. Identity headers must be supplied and sanitized by the Sites gateway; do not expose another origin that accepts caller-supplied identity headers.

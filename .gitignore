@@ -46,3 +46,13 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+
+# Local credentials and generated runtime files
+.env
+.env.*
+!.env.*.example
+*.key
+node_modules/
+.venv/
+__pycache__/
+*.pyc
